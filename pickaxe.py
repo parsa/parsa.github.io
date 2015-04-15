@@ -130,9 +130,11 @@ for counter_name in plot_data: # Counter level
         subplot.append('\'{0}\' title \'{1}\' with linespoints'.format(file_path, summary_name))
 
     # Markdown links and images
-    markdown_links += '- [{0}.png](#{0})\n'.format(counter_name)
+    sane_counter_name =  ''.join(x for x in counter_name if x.isalnum())
 
-    markdown_images += '### {0} {{#{0}}}\n'.format(counter_name)
+    markdown_links += '- [{0}](#{1})\n'.format(counter_name, sane_counter_name)
+
+    markdown_images += '### {0} {{#{1}}}\n'.format(counter_name, sane_counter_name)
     markdown_images += '[![{0}](/assets/{0}.png)](/assets/{0}.png "{0}.png")\n\n'.format(counter_name)
     markdown_images += '[Back to top](#figures)\n\n'
     # GNUPlot file
