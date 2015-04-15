@@ -69,7 +69,7 @@ for file_name in os.listdir(base_path):
 
     
 ## HACK: Dump all to json
-#with open(base_path + '/../processed/all.json', 'w') as f:
+#with open(base_path + '/../all.json', 'w') as f:
 #    f.writelines(json.dumps(fx_data, sort_keys=True, indent=4, separators=(',', ': ')))
 
 ## HACK: Debug
