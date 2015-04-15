@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import collections
 import datetime
 import json
 import numpy
@@ -103,6 +104,9 @@ markdown += '## Figures\n'
 
 markdown_images = ''
 markdown_links = ''
+
+# Sort the dictionary
+plot_data = collections.OrderedDict(sorted(plot_data.items()))
 
 # Generate output files
 for counter_name in plot_data: # Counter level
