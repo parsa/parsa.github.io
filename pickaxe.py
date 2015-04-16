@@ -28,6 +28,8 @@ pfx_pattern = re.compile('/([a-z_]+){locality#(\d+)/total}/(?:(?:(count|time)/)'
                          '([0-9.]+),\[[a-z]+\],([0-9.\+e]+)(?:,\[([a-z]+)?\])?')
 nodes_pattern = re.compile('([0-9]+) nodes')
 
+node_range = {'upper': 0, 'lower': sys.maxint}
+
 fx_data = {}
 
 index_template = {
@@ -101,14 +103,17 @@ gnuplot_template = {
         'set terminal png noenhanced font \'Arial,10\'\n'
         'set output \'{image_gnuplot}\'\n'
         'set title \'{counter_name}\'\n'
-        'set title \'{counter_name}\'\n'
         'set xlabel \'Nodes\'\n'
         'set ylabel \'{unit}\'\n'
+        'set xrange [{range_lower}:{range_upper}]\n'
+        'set xtics {range_lower},{range_increment},{range_upper}\n'
         'set style line 102 lc rgb \'#d6d7d9\' lt 0 lw 1\n'
         'set grid back ls 102\n'
         'plot {subplots}\n',
-    'subplot':
-        '\'{file_path}\' title \'{summary_name}\' with linespoints'
+    'subplot_stat':
+        '\'{file_path}\' title \'{summary_name}\' with linespoints',
+    'subplot_scatter':
+        '\'{file_path}\' title \'{summary_name}\' with points pointtype 7'
 }
 
 # Parse HPX counter files
@@ -125,6 +130,8 @@ for file_name in os.listdir(dirs['data']):
             m = nodes_pattern.match(line)
             if m:
                 no_nodes = int(m.group(1))
+                node_range['upper'] = max(no_nodes, node_range['upper'])
+                node_range['lower'] = min(no_nodes, node_range['lower'])
 
             m = pfx_pattern.match(line)
             if m:
@@ -179,6 +186,7 @@ plot_data = {}
 for counter_key, counter_items in fx_data.iteritems(): # Counter name
     plot_data[counter_key] = {
         'stats': { 'max': {}, 'min': {}, 'mean': {}, 'value': {} },
+        'data': [],
         'category': '',
         'name': '',
         'type': '',
@@ -193,20 +201,36 @@ for counter_key, counter_items in fx_data.iteritems(): # Counter name
         # Determine the counter's unit
         plot_data[counter_key]['unit'] = first_item['unit']
 
+        unit = ''
         if not plot_data[counter_key]['unit']:
             plot_data[counter_key]['unit'] = 'Count'
+            unit = 'count'
         elif plot_data[counter_key]['unit'] == 'ns':
             plot_data[counter_key]['unit'] = 'Clock Cycles' # 'Time (ns)'
+            unit = 'time'
 
         if len(node_items) > 1:
             vals = map(operator.itemgetter('value'), node_items)
-            vals = map(lambda x:x*clock_freq, vals)
+            if unit == 'time':
+                vals = map(lambda x:x*clock_freq, vals)
             plot_data[counter_key]['stats']['max'][node_key] = numpy.max(vals)
             plot_data[counter_key]['stats']['min'][node_key] = numpy.min(vals)
             plot_data[counter_key]['stats']['mean'][node_key] = numpy.mean(vals)
+
+            plot_data[counter_key]['data'].extend( \
+                map(lambda x: (node_key, x), vals))
         else:
-            plot_data[counter_key]['stats']['value'][node_key] = \
-                first_item['value']*clock_freq
+            if unit == 'time':
+                plot_data[counter_key]['stats']['value'][node_key] = \
+                    first_item['value']*clock_freq
+                plot_data[counter_key]['data'].append((node_key, \
+                    first_item['value']*clock_freq))
+            else:
+                plot_data[counter_key]['stats']['value'][node_key] = \
+                    first_item['value']
+                plot_data[counter_key]['data'].append((node_key, \
+                    first_item['value']))
+
 
 index_output = index_template[index_generator]['intro'].format(
     app_name=app_name,
@@ -221,6 +245,7 @@ plot_data = collections.OrderedDict(sorted(plot_data.items()))
 
 # Generate output files
 for counter_name in plot_data: # Counter level
+    # Plot 1: Summaries
     # GNUPlot output
     script_gnuplot = os.path.abspath('{0}/{1}.gnuplot'.format(
         dirs['scripts'], counter_name))
@@ -245,11 +270,26 @@ for counter_name in plot_data: # Counter level
             f.write('# nodes, value\n')
             for key, value in summary_values.iteritems():
                 f.write('{0} {1}\n'.format(key, value))
-        subplot.append(gnuplot_template['subplot'].format(
+        subplot.append(gnuplot_template['subplot_stat'].format(
             file_path=file_path,
             summary_name=summary_name))
 
-    # Markdown links and images
+    # Plot 2: Scatter plot
+    plot_title = '{0}-{1}'.format(counter_name, 'points')
+    file_path = os.path.abspath('{0}/{1}.data'.format(
+        dirs['points'], plot_title))
+    print 'Writing to', file_path
+    with open(file_path, 'w') as f:
+        f.write('\n# Curve 0, {0} points\n'.format(len(plot_data[counter_name]['data'])))
+        f.write('# Curve title "{0}"\n'.format(plot_title))
+        f.write('# nodes, value\n')
+        for point in plot_data[counter_name]['data']:
+            f.write('{0} {1}\n'.format(point[0], point[1]))
+    subplot.append(gnuplot_template['subplot_scatter'].format(
+        file_path=file_path,
+        summary_name='data'))
+
+    # Index links and images
     sane_counter_name =  ''.join(x for x in counter_name if x.isalnum())
 
     index_links += index_template[index_generator]['links'].format(
@@ -270,7 +310,10 @@ for counter_name in plot_data: # Counter level
         image_gnuplot=image_gnuplot,
         counter_name=counter_name,
         unit = plot_data[counter_name]['unit'],
-        subplots=', '.join(subplot))
+        subplots=', '.join(subplot),
+        range_upper=node_range['upper'],
+        range_lower=node_range['lower'],
+        range_increment=(node_range['upper']-node_range['lower'])/20)
 
     with open(script_gnuplot, 'w') as f:
         f.writelines(cmd_gnuplot)
