@@ -9,11 +9,18 @@ import re
 import sys
 
 # Basic Configuration
-base_path = './data'
-#base_path = os.path.abspath(base_path)
 index_generator = 'jekyll'
 index_file = 'index.md'
-asset_prefix = '/assets/'
+asset_prefix = '/assets/2015-04-15-1d_stencil_8-472bcca415-0/'
+app_name = '1d_stencil_8'
+changeset = '472bcca415'
+pickaxe_url = 'http://parsa.github.io/pickaxe.py'
+dirs = {
+    'data': './data',
+    'images': './assets',
+    'points': './processed',
+    'scripts': './processed'
+}
 
 pfx_pattern = re.compile('/([a-z_]+){locality#(\d+)/total}/(?:(?:(count|time)/)([a-z/_-]+)|([a-z/_-]+)/(?:(count|time))),([0-9]+),([0-9.]+),\[[a-z]+\],([0-9.\+e]+)(?:,\[([a-z]+)?\])?')
 nodes_pattern = re.compile('([0-9]+) nodes')
@@ -23,13 +30,14 @@ fx_data = {}
 index_template = {
     'html': {
         'intro': '<html>\n'
-                 '<head><title>{application}-{changeset}</title></head>\n'
+                 '<head><title>{app_name}-{changeset}</title></head>\n'
                  '<body>\n'
-                 '<h1><a id="figures">{application}-{changeset}</a></h1>\n'
-                 '<p>Generated with <a href="http://parsa.github.io/pickaxe.py">pickaxe.py</a></p>\n'
+                 '<h1><a id="figures">{app_name}-{changeset}</a></h1>\n'
+                 '<p>Date: {timestamp:%y/%m/%d %H:%M:%S}</p>\n'
+                 '<p>Generated with <a href="{pickaxe_url}">pickaxe.py</a></p>\n'
                  '<ul>\n',
         'links': '<li><a href=#{sane_counter_name}>{counter_name}</a></li>\n',
-        'images': '<h3 id="{counter_name}"></h3>\n'
+        'images': '<h3 id="{sane_counter_name}">{counter_name}</h3>\n'
                   '<a href="{asset_prefix}{counter_name}.png" title={counter_name}.png><img src="{asset_prefix}{counter_name}.png" alt="{counter_name}"/></a>\n'
                   '<p><a href=#figures>Back to top</a></p>\n\n',
         'mid': '</ul>\n\n<hr />\n\n',
@@ -37,10 +45,10 @@ index_template = {
                   '</html>'
     },
     'markdown': {
-        'intro': '# {application}-{changeset}\n'
+        'intro': '# {app_name}-{changeset}\n'
                  'Date: {timestamp:%y/%m/%d %H:%M:%S}\n'
-                 'Generated with [pickaxe.py](http://parsa.github.io/pickaxe.py)\n\n'
-                 '## Figures\n', # format: application='1d_stencil_8', changeset='472bcca415', timestamp=datetime.datetime.now()
+                 'Generated with [pickaxe.py]({pickaxe_url})\n\n'
+                 '## Figures\n', # format: app_name=app_name, changeset=changeset, timestamp=datetime.datetime.now()
          'links': '- [{counter_name}](#{sane_counter_name})\n', # format: counter_name='', sane_counter_name=''
          'images': '### {counter_name} {{#{sane_counter_name}}}\n'
                    '[![{counter_name}]({asset_prefix}{counter_name}.png)]({asset_prefix}{counter_name}.png "{counter_name}.png")\n\n'
@@ -51,12 +59,12 @@ index_template = {
     'jekyll': {
         'intro': '---\n'
                  'layout: post\n'
-                 'title:  "{application}-{changeset}"\n'
+                 'title:  "{app_name}-{changeset}"\n'
                  'date:   {timestamp:%y/%m/%d %H:%M:%S}\n'
-                 'categories: agas stencil_8\n'
+                 'categories: agas {app_name}\n'
                  '---\n'
-                 'Generated with [pickaxe.py](http://parsa.github.io/pickaxe.py)\n\n'
-                 '## Figures\n', # format: application='1d_stencil_8', changeset='472bcca415', timestamp=datetime.datetime.now()
+                 'Generated with [pickaxe.py]({pickaxe_url})\n\n'
+                 '## Figures\n', # format: app_name=app_name, changeset=changeset, timestamp=datetime.datetime.now()
          'links': '- [{counter_name}](#{sane_counter_name})\n', # format: counter_name='', sane_counter_name=''
          'images': '### {counter_name} {{#{sane_counter_name}}}\n'
                    '[![{counter_name}]({asset_prefix}{counter_name}.png)]({asset_prefix}{counter_name}.png "{counter_name}.png")\n\n'
@@ -66,13 +74,27 @@ index_template = {
     }
 }
 
+gnuplot_template = {
+    'main':
+        'set terminal png noenhanced font \'Arial,10\'\n'
+        'set output \'{image_gnuplot}\'\n' # format: image_gnuplot
+        'set title \'{counter_name}\'\n' # format: counter_name
+        'set title \'{counter_name}\'\n' # format: counter_name
+        'set xlabel \'Nodes\'\n'
+        'set ylabel \'{metric}\'\n' # format: plot_data[counter_name]['metric']
+        'set style line 102 lc rgb \'#d6d7d9\' lt 0 lw 1\n'
+        'set grid back ls 102\n'
+        'plot {subplots}\n', # format: ', '.join(subplot)
+    'subplot': '\'{file_path}\' title \'{summary_name}\' with linespoints' #format: file_path, summary_name
+}
+
 # Parse HPX counter files
-for file_name in os.listdir(base_path):
+for file_name in os.listdir(dirs['data']):
     print 'Reading', file_name
     if not file_name.endswith('.txt'):
         print 'Skipped...'
         continue
-    path = os.path.join(base_path, file_name)
+    path = os.path.join(dirs['data'], file_name)
 
     with open(path) as pfx_data_file:
         no_nodes = 0 # Number of nodes
@@ -120,7 +142,7 @@ for file_name in os.listdir(base_path):
 
     
 ## HACK: Dump all to json
-#with open(base_path + '/../all.json', 'w') as f:
+#with open(dirs['index'] + '/../all.json', 'w') as f:
 #    f.writelines(json.dumps(fx_data, sort_keys=True, indent=4, separators=(',', ': ')))
 
 ## HACK: Debug
@@ -150,7 +172,7 @@ for counter_key, counter_items in fx_data.iteritems(): # Counter name
         else:
             plot_data[counter_key]['stats']['value'][node_key] = first_item['value']
 
-index_output = index_template[index_generator]['intro'].format(application='1d_stencil_8', changeset='472bcca415', timestamp=datetime.datetime.now())
+index_output = index_template[index_generator]['intro'].format(app_name=app_name, changeset=changeset, timestamp=datetime.datetime.now(), pickaxe_url=pickaxe_url)
 
 index_images = ''
 index_links = ''
@@ -161,14 +183,9 @@ plot_data = collections.OrderedDict(sorted(plot_data.items()))
 # Generate output files
 for counter_name in plot_data: # Counter level
     # GNUPlot output
-    script_gnuplot = os.path.abspath('{0}/../processed/{1}.gnuplot'.format(base_path, counter_name))
-    image_gnuplot = os.path.abspath('{0}/../assets/{1}.png'.format(base_path, counter_name))
+    script_gnuplot = os.path.abspath('{0}/{1}.gnuplot'.format(dirs['scripts'], counter_name))
+    image_gnuplot = os.path.abspath('{0}//{1}.png'.format(dirs['images'], counter_name))
 
-    # GNUPlot script
-    cmd_gnuplot = ''
-    cmd_gnuplot += 'set terminal png noenhanced font \'Arial,10\'\n'
-    cmd_gnuplot += 'set output \'{0}\'\n'.format(image_gnuplot)
-    # plot 'agas-increment_credit-time-mean.data' title 'Mean' with linespoints, 'agas-increment_credit-time-max.data' title 'Max' with linespoints, 'agas-increment_credit-time-min.data' title 'Min' with linespoints
     subplot = []
     for summary_name, summary_values in plot_data[counter_name]['stats'].iteritems(): # Value Type
         if len(summary_values) == 0:
@@ -176,7 +193,7 @@ for counter_name in plot_data: # Counter level
 
         plot_title = '{0}-{1}'.format(counter_name, summary_name)
 
-        file_path = os.path.abspath('{0}/../processed/{1}.data'.format(base_path, plot_title))
+        file_path = os.path.abspath('{0}/{1}.data'.format(dirs['points'], plot_title))
         print 'Writing to', file_path
         with open(file_path, 'w') as f:
             f.write('\n# Curve 0, {0} points\n'.format(len(summary_values)))
@@ -184,7 +201,7 @@ for counter_name in plot_data: # Counter level
             f.write('# nodes, value\n')
             for key, value in summary_values.iteritems():
                 f.write('{0} {1}\n'.format(key, value))
-        subplot.append('\'{0}\' title \'{1}\' with linespoints'.format(file_path, summary_name))
+        subplot.append(gnuplot_template['subplot'].format(file_path=file_path, summary_name=summary_name))
 
     # Markdown links and images
     sane_counter_name =  ''.join(x for x in counter_name if x.isalnum())
@@ -192,13 +209,10 @@ for counter_name in plot_data: # Counter level
     index_links += index_template[index_generator]['links'].format(counter_name=counter_name, sane_counter_name=sane_counter_name)
 
     index_images += index_template[index_generator]['images'].format(counter_name=counter_name, sane_counter_name=sane_counter_name, asset_prefix=asset_prefix)
-    # GNUPlot file
-    cmd_gnuplot += 'set title \'{0}\'\n'.format(counter_name)
-    cmd_gnuplot += 'set xlabel \'Nodes\'\n'
-    cmd_gnuplot += 'set ylabel \'{0}\'\n'.format(plot_data[counter_name]['metric'])
-    cmd_gnuplot += 'set style line 102 lc rgb \'#d6d7d9\' lt 0 lw 1\n'
-    cmd_gnuplot += 'set grid back ls 102\n'
-    cmd_gnuplot += 'plot {0}\n'.format(', '.join(subplot))
+
+    # GNUPlot script
+    # plot 'agas-increment_credit-time-mean.data' title 'Mean' with linespoints, 'agas-increment_credit-time-max.data' title 'Max' with linespoints, 'agas-increment_credit-time-min.data' title 'Min' with linespoints
+    cmd_gnuplot = gnuplot_template['main'].format(image_gnuplot=image_gnuplot, counter_name=counter_name, metric = plot_data[counter_name]['metric'], subplots=', '.join(subplot))
     with open(script_gnuplot, 'w') as f:
         f.writelines(cmd_gnuplot)
     cmd = 'gnuplot {0}'.format(script_gnuplot)
