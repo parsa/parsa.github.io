@@ -43,12 +43,12 @@ index_template = {
             '<p>Generated with <a href="{pickaxe_url}">pickaxe.py</a></p>\n'
             '<ul>\n',
         'links':
-            '<li><a href=#{sane_counter_name}>{counter_name}</a></li>\n',
+            '<li><a href=#{sane_counter_name}>{counter_full_name}</a></li>\n',
         'images':
-            '<h3 id="{sane_counter_name}">{counter_name}</h3>\n'
+            '<h3 id="{sane_counter_name}">{counter_full_name}</h3>\n'
             '<a href="{asset_prefix}{counter_name}.png" '
             'title={counter_name}.png><img src="{asset_prefix}'
-            '{counter_name}.png" alt="{counter_name}"/></a>\n'
+            '{counter_name}.png" alt="{counter_full_name}"/></a>\n'
             '<p><a href=#figures>Back to top</a></p>\n\n',
         'mid':
             '</ul>\n\n<hr />\n\n',
@@ -63,9 +63,9 @@ index_template = {
             'Generated with [pickaxe.py]({pickaxe_url})\n\n'
             '## Figures\n',
          'links':
-            '- [{counter_name}](#{sane_counter_name})\n',
+            '- [{counter_full_name}](#{sane_counter_name})\n',
          'images':
-            '### {counter_name} {{#{sane_counter_name}}}\n'
+            '### {counter_full_name} {{#{sane_counter_name}}}\n'
             '[![{counter_name}]({asset_prefix}{counter_name}.png)]'
             '({asset_prefix}{counter_name}.png "{counter_name}.png")\n\n'
             '[Back to top](#figures)\n\n',
@@ -85,9 +85,9 @@ index_template = {
             'Generated with [pickaxe.py]({pickaxe_url})\n\n'
             '## Figures\n',
          'links':
-            '- [{counter_name}](#{sane_counter_name})\n',
+            '- [{counter_full_name}](#{sane_counter_name})\n',
          'images':
-            '### {counter_name} {{#{sane_counter_name}}}\n'
+            '### {counter_full_name} {{#{sane_counter_name}}}\n'
             '[![{counter_name}]({asset_prefix}{counter_name}.png)]'
             '({asset_prefix}{counter_name}.png "{counter_name}.png")\n\n'
             '[Back to top](#figures)\n\n',
@@ -102,7 +102,7 @@ gnuplot_template = {
     'main':
         'set terminal png noenhanced font \'Arial,10\'\n'
         'set output \'{image_gnuplot}\'\n'
-        'set title \'{counter_name}\'\n'
+        'set title \'{counter_full_name}\'\n'
         'set xlabel \'Nodes\'\n'
         'set ylabel \'{unit}\'\n'
         'set xrange [{range_lower}:{range_upper}]\n'
@@ -111,7 +111,7 @@ gnuplot_template = {
         'set grid back ls 102\n'
         'plot {subplots}\n',
     'subplot_stat':
-        '\'{file_path}\' title \'{summary_name}\' with linespoints',
+        '\'{file_path}\' title \'{summary_name}\' with linespoints linewidth 2',
     'subplot_scatter':
         '\'{file_path}\' title \'{summary_name}\' with points pointtype 7'
 }
@@ -187,27 +187,36 @@ for counter_key, counter_items in fx_data.iteritems(): # Counter name
     plot_data[counter_key] = {
         'stats': { 'max': {}, 'min': {}, 'mean': {}, 'value': {} },
         'data': [],
-        'category': '',
-        'name': '',
-        'type': '',
-        'unit': ''
+        'unit': '',
+        'full_name': ''
     }
+
+    # Get first element
+    el = fx_data[counter_key][counter_items.keys()[0]][0]
+
+    # Determine the counter's unit
+    unit = ''
+    if not el['unit']:
+        plot_data[counter_key]['unit'] = 'Count'
+        unit = 'count'
+    elif el['unit'] == 'ns':
+        plot_data[counter_key]['unit'] = 'Clock Cycles' # 'Time (ns)'
+        unit = 'time'
+    else:
+        plot_data[counter_key]['unit'] = el['unit']
+
+    plot_data[counter_key]['full_name'] = \
+        '{0}: {1} - {2}'.format(
+            el['category'],
+            el['name'].replace('_', ' '),
+            el['type']
+        ).title().replace('Mpi', 'MPI').replace('Agas', 'AGAS')
+
     for node_key, node_items in counter_items.iteritems(): # Node count
         first_item = node_items[0]
         plot_data[counter_key]['category'] = first_item['category']
         plot_data[counter_key]['name'] = first_item['name']
         plot_data[counter_key]['type'] = first_item['type']
-
-        # Determine the counter's unit
-        plot_data[counter_key]['unit'] = first_item['unit']
-
-        unit = ''
-        if not plot_data[counter_key]['unit']:
-            plot_data[counter_key]['unit'] = 'Count'
-            unit = 'count'
-        elif plot_data[counter_key]['unit'] == 'ns':
-            plot_data[counter_key]['unit'] = 'Clock Cycles' # 'Time (ns)'
-            unit = 'time'
 
         if len(node_items) > 1:
             vals = map(operator.itemgetter('value'), node_items)
@@ -280,7 +289,8 @@ for counter_name in plot_data: # Counter level
         dirs['points'], plot_title))
     print 'Writing to', file_path
     with open(file_path, 'w') as f:
-        f.write('\n# Curve 0, {0} points\n'.format(len(plot_data[counter_name]['data'])))
+        f.write('\n# Curve 0, {0} points\n'.format(
+            len(plot_data[counter_name]['data'])))
         f.write('# Curve title "{0}"\n'.format(plot_title))
         f.write('# nodes, value\n')
         for point in plot_data[counter_name]['data']:
@@ -291,15 +301,18 @@ for counter_name in plot_data: # Counter level
 
     # Index links and images
     sane_counter_name =  ''.join(x for x in counter_name if x.isalnum())
+    counter_full_name = plot_data[counter_name]['full_name']
 
     index_links += index_template[index_generator]['links'].format(
         counter_name=counter_name,
-        sane_counter_name=sane_counter_name)
+        sane_counter_name=sane_counter_name,
+        counter_full_name=counter_full_name)
 
     index_images += index_template[index_generator]['images'].format(
         counter_name=counter_name,
         sane_counter_name=sane_counter_name,
-        asset_prefix=asset_prefix)
+        asset_prefix=asset_prefix,
+        counter_full_name=counter_full_name)
 
     # GNUPlot script
     # Example plot command:
@@ -311,6 +324,7 @@ for counter_name in plot_data: # Counter level
         counter_name=counter_name,
         unit = plot_data[counter_name]['unit'],
         subplots=', '.join(subplot),
+        counter_full_name=counter_full_name,
         range_upper=node_range['upper'],
         range_lower=node_range['lower'],
         range_increment=(node_range['upper']-node_range['lower'])/20)
