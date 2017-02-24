@@ -1,7 +1,8 @@
-#!/usr/bin/python
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import collections
 import datetime
-import json
 import numpy
 import operator
 import os
@@ -22,7 +23,7 @@ dirs = {
     'scripts': './processed'
 }
 
-pickaxe_url = 'http://parsa.github.io/pickaxe.py'
+pickaxe_url = 'http://pickaxe-py.projects.parsaamini.net/pickaxe.py'
 pfx_pattern = re.compile('/([a-z_]+){locality#(\d+)/total}/(?:(?:(count|time)/)'
                          '([a-z/_-]+)|([a-z/_-]+)/(?:(count|time))),([0-9]+),'
                          '([0-9.]+),\[[a-z]+\],([0-9.\+e]+)(?:,\[([a-z]+)?\])?')
@@ -146,14 +147,14 @@ for file_name in os.listdir(dirs['data']):
                     'timestamp': m.group(8),
                     'seq_no': int(m.group(7))
                 }
-                
+
                 if m.group(3) != None:
                     entity['name'] = m.group(4)
                     entity['type'] = m.group(3)
                 else:
                     entity['name'] = m.group(5)
                     entity['type'] = m.group(6)
-                
+
                 entity['name'] = entity['name'].replace('/', '.')
 
                 # Construct dictionary keyname
@@ -167,19 +168,6 @@ for file_name in os.listdir(dirs['data']):
                 else:
                     fx_data[keyname] = {}
                     fx_data[keyname][no_nodes] = [entity]
-
-    
-## HACK: Dump all to json
-#with open(dirs['index'] + '/../all.json', 'w') as f:
-#    f.writelines(json.dumps(
-#        fx_data, sort_keys=True, indent=4, separators=(',', ': ')))
-
-## HACK: Debug
-#for i, vi in fx_data.iteritems():
-#    print '====================\n' + i + ':\n===================='
-#    for j, vj in vi.iteritems():
-#        print '--------------------\n' + str(j) + ':\n--------------------'
-#        print len(vj), vj
 
 # Calculate statistics
 plot_data = {}
@@ -342,4 +330,3 @@ index_output += index_template[index_generator]['footer']
 
 with open(index_file, 'w') as m:
     m.write(index_output)
-
