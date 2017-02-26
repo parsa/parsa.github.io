@@ -1,7 +1,7 @@
 # Site settings
 title: HPX - High Performance ParalleX
 description: > # this means to ignore newlines until "baseurl:"
-  HPX performance analysis reports
+  HPX Performance Analysis Reports
 baseurl: "" # the subpath of your site, e.g. /blog/
 github_username:  parsa
 
